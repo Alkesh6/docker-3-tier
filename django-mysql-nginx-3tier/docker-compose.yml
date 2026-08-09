@@ -1,0 +1,59 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppass
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - three-tier-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uappuser", "-papppass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  django:
+    build:
+      context: ./django-app
+    image: django-3tier-app:1.0
+    container_name: django
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: appdb
+      DB_USER: appuser
+      DB_PASSWORD: apppass
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - three-tier-net
+    expose:
+      - "8000"
+
+  nginx:
+    build:
+      context: ./nginx
+    image: nginx-3tier:1.0
+    container_name: nginx
+    restart: unless-stopped
+    depends_on:
+      - django
+    ports:
+      - "80:80"
+    networks:
+      - three-tier-net
+
+volumes:
+  mysql-data:
+
+networks:
+  three-tier-net:
+    driver: bridge
